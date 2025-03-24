@@ -1,43 +1,33 @@
-"use client"
+"use client";
 
-import { useState, useRef, useEffect } from "react"
-import { useSession } from "next-auth/react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
+import { useState, useRef, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { useToast } from "@/components/ui/use-toast";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
-import { 
-  Form, 
-  FormControl, 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormMessage 
-} from "@/components/ui/form"
-import { useToast } from "@/components/ui/use-toast"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { z } from "zod"
-import { 
-  KeyRound, 
-  User, 
-  Shield, 
-  Trash2, 
-  LogOut, 
-  Camera, 
-  Upload, 
-  Loader2 
-} from "lucide-react"
+  KeyRound,
+  User,
+  Shield,
+  Trash2,
+  LogOut,
+  Camera,
+  Upload,
+  Loader2,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,26 +38,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useRouter } from "next/navigation"
+} from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useRouter } from "next/navigation";
+import { UploadButton } from "@/utils/uploadthing";
+import { twMerge } from "tailwind-merge";
 
 // Settings page skeleton loader
 function SettingsPageSkeleton() {
   return (
     <div className="container py-12">
       <Skeleton className="h-8 w-64 mb-6" />
-      
+
       <div className="space-y-6">
         <Skeleton className="h-12 w-full max-w-md mb-6" />
-        
+
         <Card className="border border-border/40 bg-card/30 backdrop-blur-sm">
           <CardHeader className="pb-4">
             <Skeleton className="h-6 w-48" />
           </CardHeader>
-          
+
           <CardContent className="space-y-6">
             {/* Avatar skeleton */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-6 pb-6">
@@ -78,9 +70,9 @@ function SettingsPageSkeleton() {
                 <Skeleton className="h-9 w-24" />
               </div>
             </div>
-            
+
             <Skeleton className="h-px w-full" />
-            
+
             {/* Form skeleton */}
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -89,7 +81,7 @@ function SettingsPageSkeleton() {
                   <Skeleton className="h-10 w-full" />
                 </div>
               </div>
-              
+
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <Skeleton className="h-5 w-24" />
                 <div className="flex-1">
@@ -97,7 +89,7 @@ function SettingsPageSkeleton() {
                   <Skeleton className="h-4 w-48 mt-1" />
                 </div>
               </div>
-              
+
               <div className="flex justify-end mt-6">
                 <Skeleton className="h-10 w-32" />
               </div>
@@ -106,36 +98,40 @@ function SettingsPageSkeleton() {
         </Card>
       </div>
     </div>
-  )
+  );
 }
 
 // Form schemas
-const passwordSchema = z.object({
-  currentPassword: z.string().min(1, "Current password is required"),
-  newPassword: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string().min(8, "Password must be at least 8 characters"),
-}).refine(data => data.newPassword === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
+const passwordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
 
 const profileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
 });
 
 export default function SettingsPage() {
-  const { data: session, status, update } = useSession()
-  const { toast } = useToast()
-  const router = useRouter()
+  const { data: session, status, update } = useSession();
+  const { toast } = useToast();
+  const router = useRouter();
   // States
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
   // Refs
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Forms - moved before conditional returns to ensure consistent hook order
   const passwordForm = useForm<z.infer<typeof passwordSchema>>({
@@ -145,7 +141,7 @@ export default function SettingsPage() {
       newPassword: "",
       confirmPassword: "",
     },
-  })
+  });
 
   const profileForm = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
@@ -155,56 +151,41 @@ export default function SettingsPage() {
     values: {
       name: session?.user?.name || "",
     },
-  })
+  });
 
   // Loading state
-  if (status === 'loading') {
-    return <SettingsPageSkeleton />
+  if (status === "loading") {
+    return <SettingsPageSkeleton />;
   }
 
   // Handlers
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleImageUpload = async (file: string) => {
 
-    // Validate file
-    if (!file.type.startsWith('image/')) {
-      toast({ variant: "destructive", title: "Please upload an image file" })
-      return
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ variant: "destructive", title: "Image must be smaller than 5MB" })
-      return
-    }
+    if (!file) return;
 
     // Create preview
-    const reader = new FileReader()
-    reader.onloadend = () => setImagePreview(reader.result as string)
-    reader.readAsDataURL(file)
+    
 
-    // Upload image
-    const formData = new FormData()
-    formData.append('image', file)
-    
-    setUploading(true)
-    
+
+    setUploading(true);
+
     try {
-      const response = await fetch('/api/user/profile/image', {
-        method: 'POST',
-        body: formData,
-        cache: 'no-store',
-      })
+      const response = await fetch("/api/user/profile/image", {
+        method: "POST",
+        body: JSON.stringify({ image: file }),
+        cache: "no-store",
+      });
+
+      const data = await response.json();
       
-      const data = await response.json()
-      
+
       if (response.ok) {
         // Reset input
-        if (fileInputRef.current) fileInputRef.current.value = ""
-        
+        if (fileInputRef.current) fileInputRef.current.value = "";
+
         // Show success message
-        toast({ title: "Profile photo updated" })
-        
+        toast({ title: "Profile photo updated" });
+
         // Update session and reload
         try {
           await update({
@@ -213,42 +194,41 @@ export default function SettingsPage() {
               ...session?.user,
               image: data.imageUrl,
             },
-          })
-        
+          });
         } catch (error) {
-          console.error("Session update failed:", error)
+          console.error("Session update failed:", error);
         }
       } else {
-        setImagePreview(null)
-        toast({ 
-          variant: "destructive", 
-          title: "Upload failed", 
-          description: data.error || "Please try again" 
-        })
+        setImagePreview(null);
+        toast({
+          variant: "destructive",
+          title: "Upload failed",
+          description: data.error || "Please try again",
+        });
       }
     } catch (error) {
-      setImagePreview(null)
-      toast({ variant: "destructive", title: "Something went wrong" })
+      setImagePreview(null);
+      toast({ variant: "destructive", title: "Something went wrong" });
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
-  }
+  };
 
   const onProfileSubmit = async (values: z.infer<typeof profileSchema>) => {
-    setIsUpdatingProfile(true)
-    
+    setIsUpdatingProfile(true);
+
     try {
       const response = await fetch("/api/user/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: values.name }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (response.ok) {
-        toast({ title: "Profile updated" })
-        
+        toast({ title: "Profile updated" });
+
         try {
           await update({
             ...session,
@@ -256,27 +236,27 @@ export default function SettingsPage() {
               ...session?.user,
               name: values.name,
             },
-          })
+          });
         } catch (error) {
-          console.error("Session update failed:", error)
+          console.error("Session update failed:", error);
         }
       } else {
         toast({
           variant: "destructive",
           title: "Update failed",
           description: data.error || "Please try again",
-        })
+        });
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Something went wrong" })
+      toast({ variant: "destructive", title: "Something went wrong" });
     } finally {
-      setIsUpdatingProfile(false)
+      setIsUpdatingProfile(false);
     }
-  }
+  };
 
   const onPasswordSubmit = async (values: z.infer<typeof passwordSchema>) => {
-    setIsUpdatingPassword(true)
-    
+    setIsUpdatingPassword(true);
+
     try {
       const response = await fetch("/api/user/password", {
         method: "PUT",
@@ -285,60 +265,63 @@ export default function SettingsPage() {
           currentPassword: values.currentPassword,
           newPassword: values.newPassword,
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (response.ok) {
-        passwordForm.reset()
-        toast({ title: "Password updated" })
+        passwordForm.reset();
+        toast({ title: "Password updated" });
       } else {
         toast({
           variant: "destructive",
           title: "Update failed",
           description: data.error || "Please try again",
-        })
+        });
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Something went wrong" })
+      toast({ variant: "destructive", title: "Something went wrong" });
     } finally {
-      setIsUpdatingPassword(false)
+      setIsUpdatingPassword(false);
     }
-  }
+  };
 
   const handleDeleteAccount = async () => {
-    setIsDeleting(true)
-    
+    setIsDeleting(true);
+
     try {
-      const response = await fetch("/api/user", { method: "DELETE" })
+      const response = await fetch("/api/user", { method: "DELETE" });
 
       if (response.ok) {
-        toast({ title: "Account deleted" })
-        router.push("/auth/signout")
+        toast({ title: "Account deleted" });
+        router.push("/auth/signout");
       } else {
-        const data = await response.json()
+        const data = await response.json();
         toast({
           variant: "destructive",
           title: "Deletion failed",
           description: data.error || "Please try again",
-        })
+        });
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Something went wrong" })
+      toast({ variant: "destructive", title: "Something went wrong" });
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase()
-  }
-
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase();
+  };
 
   return (
     <div className="container py-12">
       <h1 className="text-2xl font-medium mb-6">Account Settings</h1>
-      
+
       <Tabs defaultValue="profile" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="profile" className="flex items-center gap-2">
@@ -355,95 +338,79 @@ export default function SettingsPage() {
         <TabsContent value="profile" className="space-y-4">
           <Card className="overflow-hidden border border-border/40 bg-card/30 backdrop-blur-sm">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-medium">Profile Information</CardTitle>
+              <CardTitle className="text-lg font-medium">
+                Profile Information
+              </CardTitle>
             </CardHeader>
-            
+
             {/* Profile Photo */}
             <CardContent className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center gap-6 pb-6">
                 <div className="relative group mx-auto sm:mx-0">
                   <Avatar className="h-24 w-24 border border-border/40 shadow-sm">
-                    <AvatarImage 
+                    <AvatarImage
                       className="object-cover"
-                      src={imagePreview || session?.user?.image || ""} 
+                      src={imagePreview || session?.user?.image || ""}
                       alt={session?.user?.name || "User"}
                     />
                     <AvatarFallback className="text-xl bg-primary/5">
-                      {session?.user?.name ? getInitials(session?.user?.name) : "U"}
+                      {session?.user?.name
+                        ? getInitials(session?.user?.name)
+                        : "U"}
                     </AvatarFallback>
                   </Avatar>
-                  
-                  {/* Hover overlay */}
-                  <div 
-                    className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Camera className="h-6 w-6 text-white" />
-                  </div>
-                  
-                  {/* File input */}
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    disabled={uploading}
-                  />
-                  
-                  {/* Loading state */}
-                  {uploading && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-full">
-                      <div className="h-5 w-5 border-2 border-t-white border-white/20 rounded-full animate-spin"></div>
-                    </div>
-                  )}
                 </div>
-                
+
                 <div className="text-center sm:text-left">
                   <h3 className="font-medium">Profile Photo</h3>
                   <p className="text-sm text-muted-foreground mt-1 mb-2">
                     Click on the avatar to change your photo
                   </p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="gap-2"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                  >
-                    {uploading ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>Uploading...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-3.5 w-3.5" />
-                        <span>Upload</span>
-                      </>
-                    )}
-                  </Button>
+
+                  <UploadButton
+                    endpoint="imageUploader"
+                    onClientUploadComplete={(res) => {
+                      setImagePreview(res[0].url);
+                      handleImageUpload(res[0].url);
+                      toast({ title: "Profile photo updated" });
+                    }}
+
+                    config={{ cn: twMerge }}
+
+                    appearance={{
+                      button:
+                        "ut-ready:bg-primary ut-uploading:cursor-not-allowed rounded-r-none bg-red-500 bg-none after:bg-orange-400",
+                      container: "w-max flex-row rounded-md border-cyan-300 bg-slate-800",
+                      allowedContent:
+                        "flex h-8 flex-col items-center justify-center px-2 text-white",
+                    }}
+                  />
                 </div>
               </div>
-              
+
               <Separator className="bg-border/40" />
-              
+
               {/* Profile Form */}
               <Form {...profileForm}>
-                <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
+                <form
+                  onSubmit={profileForm.handleSubmit(onProfileSubmit)}
+                  className="space-y-4"
+                >
                   <FormField
                     control={profileForm.control}
                     name="name"
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <FormLabel className="sm:w-24 sm:text-right">Name</FormLabel>
+                          <FormLabel className="sm:w-24 sm:text-right">
+                            Name
+                          </FormLabel>
                           <div className="flex-1">
                             <FormControl>
-                              <Input 
-                                placeholder="Your name" 
-                                className="bg-background/50" 
-                                {...field} 
+                              <Input
+                                placeholder="Your name"
+                                className="bg-background/50"
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -454,11 +421,13 @@ export default function SettingsPage() {
                   />
 
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                    <FormLabel className="sm:w-24 sm:text-right">Email</FormLabel>
+                    <FormLabel className="sm:w-24 sm:text-right">
+                      Email
+                    </FormLabel>
                     <div className="flex-1">
-                      <Input 
-                        value={session?.user?.email || ""} 
-                        disabled 
+                      <Input
+                        value={session?.user?.email || ""}
+                        disabled
                         className="bg-muted/30"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
@@ -468,9 +437,11 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="flex justify-end mt-6">
-                    <Button 
-                      type="submit" 
-                      disabled={isUpdatingProfile || !profileForm.formState.isDirty}
+                    <Button
+                      type="submit"
+                      disabled={
+                        isUpdatingProfile || !profileForm.formState.isDirty
+                      }
                       className="gap-2"
                     >
                       {isUpdatingProfile ? (
@@ -499,23 +470,28 @@ export default function SettingsPage() {
                 <span>Password</span>
               </CardTitle>
             </CardHeader>
-            
+
             <CardContent>
               <Form {...passwordForm}>
-                <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
+                <form
+                  onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
+                  className="space-y-4"
+                >
                   <FormField
                     control={passwordForm.control}
                     name="currentPassword"
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <FormLabel className="sm:w-36 sm:text-right">Current Password</FormLabel>
+                          <FormLabel className="sm:w-36 sm:text-right">
+                            Current Password
+                          </FormLabel>
                           <div className="flex-1">
                             <FormControl>
-                              <Input 
-                                type="password" 
-                                className="bg-background/50" 
-                                {...field} 
+                              <Input
+                                type="password"
+                                className="bg-background/50"
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -531,13 +507,15 @@ export default function SettingsPage() {
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <FormLabel className="sm:w-36 sm:text-right">New Password</FormLabel>
+                          <FormLabel className="sm:w-36 sm:text-right">
+                            New Password
+                          </FormLabel>
                           <div className="flex-1">
                             <FormControl>
-                              <Input 
-                                type="password" 
-                                className="bg-background/50" 
-                                {...field} 
+                              <Input
+                                type="password"
+                                className="bg-background/50"
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -556,13 +534,15 @@ export default function SettingsPage() {
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <FormLabel className="sm:w-36 sm:text-right">Confirm Password</FormLabel>
+                          <FormLabel className="sm:w-36 sm:text-right">
+                            Confirm Password
+                          </FormLabel>
                           <div className="flex-1">
                             <FormControl>
-                              <Input 
-                                type="password" 
-                                className="bg-background/50" 
-                                {...field} 
+                              <Input
+                                type="password"
+                                className="bg-background/50"
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -573,9 +553,11 @@ export default function SettingsPage() {
                   />
 
                   <div className="flex justify-end mt-6">
-                    <Button 
-                      type="submit" 
-                      disabled={isUpdatingPassword || !passwordForm.formState.isDirty}
+                    <Button
+                      type="submit"
+                      disabled={
+                        isUpdatingPassword || !passwordForm.formState.isDirty
+                      }
                       className="gap-2"
                     >
                       {isUpdatingPassword ? (
@@ -596,9 +578,11 @@ export default function SettingsPage() {
           {/* Account Actions Card */}
           <Card className="border border-border/40 bg-card/30 backdrop-blur-sm">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-medium">Account Actions</CardTitle>
+              <CardTitle className="text-lg font-medium">
+                Account Actions
+              </CardTitle>
             </CardHeader>
-            
+
             <CardContent className="space-y-4">
               {/* Sign Out */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-background/50">
@@ -611,15 +595,15 @@ export default function SettingsPage() {
                     Sign out from your current session
                   </p>
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => router.push("/auth/signout")}
                 >
                   Sign Out
                 </Button>
               </div>
-              
+
               {/* Delete Account */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-destructive/5 border border-destructive/10">
                 <div>
@@ -641,8 +625,8 @@ export default function SettingsPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete account?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action cannot be undone. Your account and all associated data
-                        will be permanently deleted.
+                        This action cannot be undone. Your account and all
+                        associated data will be permanently deleted.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -670,5 +654,5 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
-} 
+  );
+}
