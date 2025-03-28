@@ -12,7 +12,7 @@ export function Providers({ children }: ProvidersProps) {
     <SessionProvider>
       <ThemeProvider
         attribute="class"
-        defaultTheme="dark"
+        defaultTheme="light"
         enableSystem={false}
         themes={["light", "dark", "blue", "red", "yellow", "green", "purple"]}
       >

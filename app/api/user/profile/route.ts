@@ -2,12 +2,6 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { z } from "zod"
-
-// Define the validation schema
-const profileSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-})
 
 export async function PUT(req: Request) {
   try {
@@ -22,34 +16,28 @@ export async function PUT(req: Request) {
     }
     
     // Get the data from the request
-    const body = await req.json()
+    const { name, department } = await req.json()
     
-    // Validate data
-    const validationResult = profileSchema.safeParse(body)
-    
-    if (!validationResult.success) {
+    // Basic validation
+    if (!name) {
       return NextResponse.json(
-        { error: validationResult.error.errors[0].message },
+        { error: "Name is required" },
         { status: 400 }
       )
     }
     
-    const { name } = validationResult.data
-    
-    // Update the user profile
+    // Update the user in the database
     const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
-      data: { name }
+      data: { 
+        name,
+        department 
+      },
     })
     
-    // Remove sensitive information from the response
-    const { password, ...userWithoutPassword } = updatedUser
-    
+    // Return success
     return NextResponse.json(
-      { 
-        message: "Profile updated successfully",
-        user: userWithoutPassword 
-      },
+      { message: "Profile updated successfully", user: updatedUser },
       { status: 200 }
     )
   } catch (error) {
