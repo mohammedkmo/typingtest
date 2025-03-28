@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import Image from "next/image"
 import { Calistoga } from "next/font/google"
+import { useSearchParams, useRouter } from "next/navigation"
+import { useEffect } from "react"
 
 const calistoga = Calistoga({
   weight: ["400"],
@@ -14,9 +16,24 @@ const calistoga = Calistoga({
 })
 
 export default function VerifyRequestPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const email = searchParams.get('email');
+  const registered = searchParams.get('registered') === 'true';
+  
+  // Automatically redirect to verify page after a short delay
+  useEffect(() => {
+    if (email) {
+      const timer = setTimeout(() => {
+        router.push(`/auth/verify?email=${encodeURIComponent(email)}`);
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [email, router]);
+  
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-background to-background/80">
-      <div className="absolute inset-0 bg-grid-small-black/[0.2] bg-[length:20px_20px] opacity-20" />
       
       <motion.div
         className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[400px] px-4"
@@ -43,8 +60,8 @@ export default function VerifyRequestPage() {
           </h1>
           
           <p className="text-muted-foreground max-w-sm mx-auto">
-            A sign in link has been sent to your email address. 
-            Please check your inbox and click the link to sign in.
+            A 6-digit verification code has been sent to your email address.
+            {registered ? ' Please verify your account to complete registration.' : ' Please enter the code to sign in.'}
           </p>
         </div>
         
@@ -52,7 +69,7 @@ export default function VerifyRequestPage() {
           <div className="p-5 rounded-lg bg-muted/40 text-center space-y-4">
             <div className="flex items-center justify-center gap-2 text-sm font-medium">
               <Inbox className="h-4 w-4" />
-              <span>The link will expire in 10 minutes</span>
+              <span>The code will expire in 10 minutes</span>
             </div>
             
             <p className="text-xs text-muted-foreground">
@@ -62,6 +79,14 @@ export default function VerifyRequestPage() {
           </div>
           
           <div className="flex flex-col space-y-2">
+            <Link href={`/auth/verify?email=${encodeURIComponent(email || '')}`}>
+              <Button 
+                className="w-full flex items-center justify-center gap-2"
+              >
+                Enter Verification Code
+              </Button>
+            </Link>
+            
             <Link href="/auth/signin">
               <Button 
                 variant="outline" 

@@ -8,15 +8,12 @@ import { ArrowLeft, Mail } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { Calistoga } from "next/font/google"
-import { signIn } from "next-auth/react"
 
 const calistoga = Calistoga({
   weight: ["400"],
   subsets: ["latin"],
   display: "swap",
 })
-
-
 
 const DOMAIN = "@petrochina-hfy.com"
 export default function RegisterForm() {
@@ -83,18 +80,26 @@ export default function RegisterForm() {
         throw new Error(data.error || "Failed to register")
       }
 
-      // Send sign-in email
-      const result = await signIn("email", {
-        email,
-        redirect: false,
-      })
+      // Send verification code
+      const codeResponse = await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          isRegistration: true
+        }),
+      });
 
-      if (result?.error) {
-        throw new Error("Failed to send login email")
+      const codeData = await codeResponse.json();
+
+      if (!codeResponse.ok) {
+        throw new Error(codeData.error || "Failed to send verification code");
       }
 
-      setRegistrationComplete(true)
-      setIsLoading(false)
+      // Redirect to verification page
+      router.push(`/auth/verify?email=${encodeURIComponent(email)}&registered=true`);
 
     } catch (error) {
       if (error instanceof Error) {
@@ -130,7 +135,7 @@ export default function RegisterForm() {
           transition={{ duration: 0.5, delay: 0.1 }}
         >
           {registrationComplete 
-            ? "We've sent you a magic link to sign in" 
+            ? "We've sent you a verification code to sign in" 
             : "Join our typing community"}
         </motion.p>
       </div>
@@ -148,13 +153,19 @@ export default function RegisterForm() {
             </div>
             
             <div className="space-y-2">
-              <p className="text-sm">We've sent a sign-in link to:</p>
+              <p className="text-sm">We've sent a verification code to:</p>
               <p className="font-medium">{email}</p>
             </div>
             
             <p className="text-xs text-muted-foreground">
-              Click the link in the email to verify your account and sign in. The link will expire in 10 minutes.
+              Enter the 6-digit code to verify your account and sign in. The code will expire in 10 minutes.
             </p>
+            
+            <Link href={`/auth/verify?email=${encodeURIComponent(email)}`}>
+              <Button className="w-full mt-4">
+                Enter Verification Code
+              </Button>
+            </Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
@@ -267,6 +278,22 @@ export default function RegisterForm() {
           </Link>
         </div>
       </motion.div>
+
+      <motion.p 
+        className="text-center text-sm text-muted-foreground"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+      >
+        By signing up, you agree to our{" "}
+        <Link href="#" className="underline underline-offset-4 hover:text-primary">
+          Terms of Service
+        </Link>{" "}
+        and{" "}
+        <Link href="#" className="underline underline-offset-4 hover:text-primary">
+          Privacy Policy
+        </Link>.
+      </motion.p>
     </div>
   )
 }

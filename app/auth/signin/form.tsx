@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { motion, AnimatePresence } from "framer-motion"
@@ -20,6 +20,7 @@ const DOMAIN = "@petrochina-hfy.com"
 
 export default function SignInForm() {
     const searchParams = useSearchParams()
+    const router = useRouter()
     const [emailPrefix, setEmailPrefix] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -28,21 +29,6 @@ export default function SignInForm() {
   
     // Full email with domain
     const email = `${emailPrefix}${DOMAIN}`
-  
-    useEffect(() => {
-      // Check if user just registered
-      const registered = searchParams.get("registered")
-      if (registered === "true") {
-        setRegistrationSuccess(true)
-        
-        // Clear registration success message after 5 seconds
-        const timer = setTimeout(() => {
-          setRegistrationSuccess(false)
-        }, 5000)
-        
-        return () => clearTimeout(timer)
-      }
-    }, [searchParams])
   
     // Handle email input change
     const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,21 +53,31 @@ export default function SignInForm() {
       setError(null)
   
       try {
-        const result = await signIn("email", {
-          email,
-          redirect: false,
-        })
-  
-        if (result?.error) {
-          setError("Failed to send login email. Please try again.")
-          setIsLoading(false)
-          return
+        // Send verification code
+        const response = await fetch("/api/auth/send-code", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            isRegistration: false // This is a sign-in, not registration
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to send verification code");
         }
   
         setEmailSent(true)
         setIsLoading(false)
+        
+        // Redirect to verification page
+        router.push(`/auth/verify?email=${encodeURIComponent(email)}`);
       } catch (error) {
-        setError("Something went wrong. Please try again.")
+        setError(error instanceof Error ? error.message : "Something went wrong. Please try again.")
         setIsLoading(false)
       }
     }
@@ -111,7 +107,7 @@ export default function SignInForm() {
           transition={{ duration: 0.5, delay: 0.1 }}
         >
           {emailSent 
-            ? "We've sent you a magic link to sign in" 
+            ? "We've sent you a verification code to sign in" 
             : "Sign in to your account to continue"}
         </motion.p>
       </div>
@@ -125,7 +121,7 @@ export default function SignInForm() {
             exit={{ opacity: 0, height: 0 }}
           >
             <CheckCircle className="h-5 w-5 flex-shrink-0" />
-            <span>Account created successfully! Check your email for a login link.</span>
+            <span>Account created successfully! Check your email for a verification code.</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -143,17 +139,23 @@ export default function SignInForm() {
             </div>
             
             <div className="space-y-2">
-              <p className="text-sm">We've sent a sign-in link to:</p>
+              <p className="text-sm">We've sent a verification code to:</p>
               <p className="font-medium">{email}</p>
             </div>
             
             <p className="text-xs text-muted-foreground">
-              The link will expire in 10 minutes. If you don't see it, check your spam folder.
+              The code will expire in 10 minutes. If you don't see it, check your spam folder.
             </p>
+
+            <Link href={`/auth/verify?email=${encodeURIComponent(email)}`}>
+              <Button className="w-full mt-4">
+                Enter Verification Code
+              </Button>
+            </Link>
             
             <Button 
               variant="ghost" 
-              className="w-full mt-4"
+              className="w-full mt-2"
               onClick={() => {
                 setEmailSent(false)
                 setEmailPrefix("")
@@ -206,7 +208,7 @@ export default function SignInForm() {
                 {isLoading ? (
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-background border-t-foreground" />
                 ) : (
-                  <>Send Sign In Link</>
+                  <>Send Verification Code</>
                 )}
               </Button>
             </div>
@@ -253,8 +255,7 @@ export default function SignInForm() {
         and{" "}
         <Link href="#" className="underline underline-offset-4 hover:text-primary">
           Privacy Policy
-        </Link>
-        .
+        </Link>.
       </motion.p>
     </div>
   </div>

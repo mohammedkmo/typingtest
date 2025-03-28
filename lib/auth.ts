@@ -1,9 +1,10 @@
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/db"
 import { NextAuthOptions } from "next-auth"
-import EmailProvider from "next-auth/providers/email"
+import CredentialsProvider from "next-auth/providers/credentials"
 import { createTransport } from "nodemailer"
 import { Theme } from "next-auth"
+import crypto from 'crypto'
 
 const DOMAIN = "@petrochina-hfy.com";
 
@@ -15,8 +16,19 @@ declare module "next-auth" {
       name?: string | null
       email?: string | null
       image?: string | null
-      department?: string | null
+      department?: string | null,
     }
+  }
+  
+  interface User {
+    department?: string | null
+  }
+}
+
+// Extend JWT to include id
+declare module "next-auth/jwt" {
+  interface JWT {
+    id?: string
   }
 }
 
@@ -40,67 +52,243 @@ function normalizeEmail(email: string): string {
   return `${sanitizedEmail}${DOMAIN}`;
 }
 
-// Custom function to handle verification requests
-async function sendVerificationRequest(params: {
-  identifier: string
-  url: string
-  provider: { server: any; from: string }
-  theme: Theme
-}) {
-  const { identifier: email, url, provider } = params;
-  const { server, from } = provider;
+// Generate a 6-digit verification code
+function generateVerificationCode(): string {
+  return crypto.randomInt(100000, 999999).toString();
+}
+
+// Send email with verification code
+export async function sendVerificationEmail(email: string): Promise<string> {
+  // Generate a 6-digit code
+  const verificationCode = generateVerificationCode();
   
-  // Log the verification URL to help debug
-  console.log("Verification URL:", url);
+  // Generate a token for this verification
+  const token = crypto.randomUUID();
+  
+  // Store the code with the token in the database
+  await prisma.verificationToken.upsert({
+    where: { token },
+    update: { 
+      code: verificationCode,
+    },
+    create: {
+      identifier: email,
+      token,
+      expires: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+      code: verificationCode,
+    },
+  });
+  
+  console.log('Verification code generated:', { email, code: verificationCode, token });
   
   // Create nodemailer transport
-  const transport = createTransport(server);
+  const transport = createTransport({
+    host: process.env.EMAIL_SERVER_HOST,
+    port: Number(process.env.EMAIL_SERVER_PORT),
+    auth: {
+      user: process.env.EMAIL_SERVER_USER,
+      pass: process.env.EMAIL_SERVER_PASSWORD,
+    },
+    secure: true,
+  });
   
-  // Customize the email content
+  // Send email with the code
   const result = await transport.sendMail({
     to: email,
-    from,
-    subject: `Sign in to Halfaya Typing Contest`,
-    text: `Sign in to Halfaya Typing Contest\n\nClick this link to sign in: ${url}\n\nThe link will expire in 10 minutes.`,
+    from: process.env.EMAIL_FROM,
+    subject: `Your Verification Code for Halfaya Typing Contest`,
+    text: `Your verification code is: ${verificationCode}\n\nThe code will expire in 10 minutes.`,
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05);">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <img src="https://download.logo.wine/logo/PetroChina/PetroChina-Logo.wine.png" alt="PetroChina Halfaya" style="max-width: 80px;">
-        </div>
-        <h1 style="color: #333; text-align: center; font-size: 24px; margin-bottom: 20px;">Welcome to Halfaya Typing Contest</h1>
-        <p style="font-size: 16px; line-height: 1.5; color: #555; margin-bottom: 25px; text-align: center;">
-          Click the button below to sign in to your account. This magic link will expire in 10 minutes.
-        </p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${url}" style="background-color: #4F46E5; color: white; padding: 12px 30px; border-radius: 4px; text-decoration: none; font-weight: bold; display: inline-block; transition: background-color 0.3s ease;">Sign In</a>
-        </div>
-        <p style="font-size: 14px; color: #888; text-align: center;">
-          If the button doesn't work, you can also copy and paste this link into your browser:
-        </p>
-        <div style="background-color: #f5f5f5; border-radius: 4px; padding: 12px; margin: 15px 0; word-break: break-all; text-align: center;">
-          <a href="${url}" style="color: #4F46E5; font-size: 14px; text-decoration: none;">${url}</a>
-        </div>
-        <div style="text-align: center; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px; color: #888; font-size: 12px;">
-          <p>PetroChina Halfaya</p>
-          <p>If you didn't request this email, please ignore it.</p>
-        </div>
-      </div>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verification Code</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #ffffff; color: #333333;">
+        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table cellpadding="0" cellspacing="0" border="0" width="460" style="background-color: #ffffff;">
+                <!-- Logo -->
+                <tr>
+                  <td style="text-align: center; padding-bottom: 32px;">
+                    <img src="https://www.petrochina.com.cn/ptr/gsbs/201404/b23a63fa43d04bd89decf8a9345b6f97/images/36ad4aecace742139d74727a8f2ee5d0.jpg" alt="PetroChina Halfaya" style="width: 60px; height: auto;">
+                  </td>
+                </tr>
+                
+                <!-- Heading -->
+                <tr>
+                  <td style="padding-bottom: 24px; text-align: center;">
+                    <h1 style="font-size: 24px; font-weight: 500; color: #1a1a1a; margin: 0;">Your verification code</h1>
+                  </td>
+                </tr>
+                
+                <!-- Content -->
+                <tr>
+                  <td style="padding-bottom: 32px; text-align: center;">
+                    <p style="font-size: 16px; line-height: 24px; color: #525252; margin: 0 0 24px 0;">
+                      Enter this verification code in the Halfaya Typing Contest app:
+                    </p>
+                    
+                    <!-- Code block -->
+                    <div style="margin: 24px 0; border: 1px solid #e6e6e6; border-radius: 4px; padding: 16px;">
+                      <div style="font-family: 'Courier New', monospace; font-size: 32px; font-weight: normal; letter-spacing: 4px; color: #1a1a1a;">
+                        ${verificationCode}
+                      </div>
+                    </div>
+                    
+                    <p style="font-size: 14px; color: #6e6e6e; margin: 0;">
+                      This code will expire in 10 minutes.
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Tips -->
+                <tr>
+                  <td style="padding: 24px 0; border-top: 1px solid #f2f2f2; font-size: 14px; color: #6e6e6e; line-height: 21px;">
+                    <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="padding-bottom: 8px;">
+                          <strong style="color: #1a1a1a;">Typing Contest Tips</strong>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom: 4px;">• Focus on accuracy first, then speed</td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom: 4px;">• Take short breaks to prevent fatigue</td>
+                      </tr>
+                      <tr>
+                        <td>• Practice regularly for consistent improvement</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="padding-top: 32px; border-top: 1px solid #f2f2f2; text-align: center; font-size: 12px; color: #a3a3a3;">
+                    <p style="margin: 0 0 12px 0;">
+                      If you didn't request this code, please ignore this email.
+                    </p>
+                    <p style="margin: 0;">
+                      © 2024 PetroChina Halfaya
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `,
   });
   
-  console.log('Email sent successfully:', { messageId: result.messageId, email });
+  console.log('Verification email sent:', { messageId: result.messageId, email });
+  
+  return verificationCode;
+}
+
+// Verify a code for a given email
+export async function verifyCode(email: string, code: string): Promise<boolean> {
+  // Find the verification token in the database
+  const verificationToken = await prisma.verificationToken.findFirst({
+    where: {
+      identifier: email,
+      code: code,
+      expires: {
+        gt: new Date()
+      }
+    }
+  });
+  
+  if (!verificationToken) {
+    console.log("Invalid verification code:", { email, code });
+    return false;
+  }
+  
+  // Delete the token to prevent reuse
+  await prisma.verificationToken.delete({
+    where: {
+      token: verificationToken.token
+    }
+  });
+  
+  console.log("Valid verification code, token deleted:", { email, code });
+  return true;
 }
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
-    EmailProvider({
-      server: process.env.EMAIL_SERVER,
-      from: process.env.EMAIL_FROM,
-      sendVerificationRequest,
-      maxAge: 24 * 60 * 60, // 24 hours
+    CredentialsProvider({
+      id: "email-code",
+      name: "Email Code",
+      credentials: {
+        email: { label: "Email", type: "text" },
+        code: { label: "Code", type: "text" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.code) {
+          return null;
+        }
+        
+        const email = normalizeEmail(credentials.email);
+        const code = credentials.code;
+        
+        try {
+          // Verify the code
+          const isValid = await verifyCode(email, code);
+          
+          if (!isValid) {
+            console.log("Code verification failed");
+            return null;
+          }
+          
+          // Find or create the user
+          let user = await prisma.user.findUnique({
+            where: { email },
+          });
+          
+          if (!user) {
+            // If user doesn't exist, create a new one
+            console.log("User not found, creating new user:", email);
+            user = await prisma.user.create({
+              data: {
+                email,
+                name: email.split('@')[0],
+                emailVerified: new Date(),
+              },
+            });
+          } else if (!user.emailVerified) {
+            // Mark the email as verified if it wasn't already
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { emailVerified: new Date() },
+            });
+          }
+          
+          console.log("User authenticated:", user);
+          
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.image,
+          };
+        } catch (error) {
+          console.error("Error during authentication:", error);
+          return null;
+        }
+      },
     }),
   ],
+  session: {
+    strategy: "jwt",
+  },
   debug: process.env.NODE_ENV === "development",
   pages: {
     signIn: "/auth/signin",
@@ -109,45 +297,26 @@ export const authOptions: NextAuthOptions = {
     newUser: "/auth/new-user",
     verifyRequest: "/auth/verify-request",
   },
-  session: {
-    strategy: "jwt",
-  },
   callbacks: {
-    async signIn({ user, account, profile, email, credentials }) {
-      console.log("Sign-in callback:", { user, account, email });
-      return true;
-    },
-    async session({ session, token, trigger }) {
+    async session({ session, token }) {
       if (token.sub && session.user) {
         session.user.id = token.sub,
         session.user.image = token.picture as string,
         session.user.name = token.name as string,
         session.user.email = token.email as string
       }
-
-      if (trigger === "update") {
-        session.user.name = token.name;
-        session.user.image = token.picture;
-      }
-
-      return session
+      
+      return session;
     },
-
-    async jwt({ token, user, account, profile, session, trigger }) {
-      // Add properties to the JWT token
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
         token.picture = user.image;
       }
-
-      if (trigger === "update") {
-        token.name = session.user.name;
-        token.picture = session.user.image;
-      }
       
       return token;
-    }
+    },
   },
 } 
