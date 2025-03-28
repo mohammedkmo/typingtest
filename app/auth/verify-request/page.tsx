@@ -7,7 +7,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Calistoga } from "next/font/google"
 import { useSearchParams, useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, Suspense } from "react"
 
 const calistoga = Calistoga({
   weight: ["400"],
@@ -15,7 +15,7 @@ const calistoga = Calistoga({
   display: "swap",
 })
 
-export default function VerifyRequestPage() {
+function VerifyRequestContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const email = searchParams.get('email');
@@ -109,5 +109,17 @@ export default function VerifyRequestPage() {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+export default function VerifyRequestPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen flex-col items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      </div>
+    }>
+      <VerifyRequestContent />
+    </Suspense>
   )
 } 
