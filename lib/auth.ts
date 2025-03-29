@@ -89,7 +89,7 @@ export async function sendVerificationEmail(email: string): Promise<string> {
       user: process.env.EMAIL_SERVER_USER,
       pass: process.env.EMAIL_SERVER_PASSWORD,
     },
-    secure: true,
+    secure: process.env.IS_SECURE === "true",
   });
   
   // Send email with the code

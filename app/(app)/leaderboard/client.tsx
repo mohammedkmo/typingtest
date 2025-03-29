@@ -70,6 +70,13 @@ export default function LeaderboardClient() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<"global" | "personal">("global")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10
+  })
   
   // Calculate max score for progress bars
   const maxScore = Math.max(120, ...results.map(r => r.performanceScore || 0))
@@ -82,8 +89,8 @@ export default function LeaderboardClient() {
         
         // Always sort by performance score for contest format
         const url = view === "personal" && session?.user.id 
-          ? `/api/results?userId=${session.user.id}&limit=20` 
-          : `/api/results?limit=20`
+          ? `/api/results?userId=${session.user.id}&page=${currentPage}&itemsPerPage=${pagination.itemsPerPage}` 
+          : `/api/results?page=${currentPage}&itemsPerPage=${pagination.itemsPerPage}`
           
         console.log("Fetching from URL:", url)
         
@@ -109,6 +116,11 @@ export default function LeaderboardClient() {
         }
         
         setResults(data.results)
+        
+        // Update pagination data if available
+        if (data.pagination) {
+          setPagination(data.pagination)
+        }
       } catch (error: any) {
         console.error("Error fetching leaderboard data:", error)
         setError(error?.message || "Failed to load leaderboard data")
@@ -121,7 +133,82 @@ export default function LeaderboardClient() {
     if (session !== undefined || view === "global") {
       fetchResults()
     }
-  }, [view, session])
+  }, [view, session, currentPage, pagination.itemsPerPage])
+  
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > pagination.totalPages) return
+    setCurrentPage(newPage)
+    // Scroll to top when changing pages
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  
+  // Reset to first page when view changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [view])
+  
+  // Pagination controls component
+  const PaginationControls = () => {
+    if (pagination.totalPages <= 1) return null
+    
+    return (
+      <div className="flex items-center justify-center gap-2 mt-8">
+        <Button 
+          variant="outline" 
+          size="sm"
+          disabled={currentPage <= 1}
+          onClick={() => handlePageChange(currentPage - 1)}
+        >
+          Previous
+        </Button>
+        
+        <div className="flex items-center gap-1">
+          {[...Array(pagination.totalPages)].map((_, i) => {
+            const pageNumber = i + 1
+            
+            // Show current page, first, last, and pages around current
+            if (
+              pageNumber === 1 || 
+              pageNumber === pagination.totalPages ||
+              (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1)
+            ) {
+              return (
+                <Button
+                  key={i}
+                  variant={pageNumber === currentPage ? "default" : "outline"}
+                  size="sm"
+                  className="w-8 h-8 p-0"
+                  onClick={() => handlePageChange(pageNumber)}
+                >
+                  {pageNumber}
+                </Button>
+              )
+            }
+            
+            // Show ellipsis for breaks in sequence
+            if (
+              (pageNumber === 2 && currentPage > 3) ||
+              (pageNumber === pagination.totalPages - 1 && currentPage < pagination.totalPages - 2)
+            ) {
+              return <span key={i} className="px-1">...</span>
+            }
+            
+            return null
+          })}
+        </div>
+        
+        <Button 
+          variant="outline" 
+          size="sm"
+          disabled={currentPage >= pagination.totalPages}
+          onClick={() => handlePageChange(currentPage + 1)}
+        >
+          Next
+        </Button>
+      </div>
+    )
+  }
   
   return (
     <main className="bg-background py-16">
@@ -184,7 +271,7 @@ export default function LeaderboardClient() {
                 
                 <div className="flex items-center gap-6">
                   <div>
-                    <div className="text-2xl font-bold tabular-nums">{results.length}</div>
+                    <div className="text-2xl font-bold tabular-nums">{pagination.totalItems || results.length}</div>
                     <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Participants</div>
                   </div>
                   <div className="h-8 border-l border-border"></div>
@@ -266,7 +353,7 @@ export default function LeaderboardClient() {
                 <motion.div 
                   key={result.id}
                   className={`rounded-md ${
-                    index < 3 
+                    index < 3 && currentPage === 1
                       ? index === 0 
                         ? 'border-l-[3px] border-amber-300 border-y border-r border-border' 
                         : index === 1 
@@ -281,15 +368,15 @@ export default function LeaderboardClient() {
                   <div className="p-4 md:p-5">
                     <div className="flex items-center gap-5">
                       <div className={`flex items-center justify-center w-9 h-9 rounded-full text-sm font-bold flex-shrink-0 ${
-                        index === 0 ? 'bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 text-amber-600 dark:text-amber-400' :
-                        index === 1 ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 text-blue-600 dark:text-blue-400' :
-                        index === 2 ? 'bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700/50 text-emerald-600 dark:text-emerald-400' :
+                        index === 0 && currentPage === 1 ? 'bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 text-amber-600 dark:text-amber-400' :
+                        index === 1 && currentPage === 1 ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 text-blue-600 dark:text-blue-400' :
+                        index === 2 && currentPage === 1 ? 'bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700/50 text-emerald-600 dark:text-emerald-400' :
                         'bg-muted/20 border-border/50 border text-muted-foreground/80'
                       }`}>
-                        {index === 0 ? <Crown className="h-4 w-4" /> : 
-                         index === 1 ? <Medal className="h-4 w-4" /> : 
-                         index === 2 ? <Trophy className="h-4 w-4" /> : 
-                         <span className="text-xs">{index + 1}</span>}
+                        {index === 0 && currentPage === 1 ? <Crown className="h-4 w-4" /> : 
+                         index === 1 && currentPage === 1 ? <Medal className="h-4 w-4" /> : 
+                         index === 2 && currentPage === 1 ? <Trophy className="h-4 w-4" /> : 
+                         <span className="text-xs">{((currentPage - 1) * pagination.itemsPerPage) + index + 1}</span>}
                       </div>
                       
                       <div className="min-w-0 flex-1">
@@ -336,11 +423,11 @@ export default function LeaderboardClient() {
                               : "N/A"}
                           </div>
                           <div className={`text-[10px] uppercase tracking-wider ${
-                            index === 0 
+                            index === 0 && currentPage === 1
                               ? 'text-amber-600 dark:text-amber-400' 
-                              : index === 1 
+                              : index === 1 && currentPage === 1
                                 ? 'text-blue-600 dark:text-blue-400' 
-                                : index === 2 
+                                : index === 2 && currentPage === 1
                                   ? 'text-emerald-600 dark:text-emerald-400'
                                   : 'text-muted-foreground'
                           }`}>
@@ -353,6 +440,18 @@ export default function LeaderboardClient() {
                 </motion.div>
               );
             })}
+          </div>
+        )}
+        
+        {/* Add pagination controls after the results list */}
+        {!isLoading && !error && results.length > 0 && (
+          <PaginationControls />
+        )}
+        
+        {/* Display pagination info */}
+        {!isLoading && !error && results.length > 0 && pagination.totalItems > 0 && (
+          <div className="text-center text-xs text-muted-foreground mt-4">
+            Showing {results.length} of {pagination.totalItems} results
           </div>
         )}
       </div>

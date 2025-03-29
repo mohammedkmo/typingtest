@@ -58,7 +58,8 @@ export async function GET(req: Request) {
     
     // Get query parameters
     const userId = url.searchParams.get("userId")
-    const limit = parseInt(url.searchParams.get("limit") || "10")
+    const page = parseInt(url.searchParams.get("page") || "1")
+    const itemsPerPage = parseInt(url.searchParams.get("itemsPerPage") || "10")
     
     // Always default to performanceScore for contest format
     const orderBy: Prisma.TypingResultOrderByWithRelationInput = {
@@ -73,14 +74,23 @@ export async function GET(req: Request) {
       )
     }
 
+    // Calculate pagination values
+    const skip = (page - 1) * itemsPerPage;
     let results;
+    let totalCount = 0;
     
     if (userId) {
-      // If userId is provided, return all results for that user
+      // Get total count for personal results
+      totalCount = await prisma.typingResult.count({
+        where: { userId }
+      });
+      
+      // If userId is provided, return paginated results for that user
       results = await prisma.typingResult.findMany({
         where: { userId },
         orderBy,
-        take: limit,
+        skip,
+        take: itemsPerPage,
         include: {
           user: {
             select: {
@@ -93,12 +103,24 @@ export async function GET(req: Request) {
         },
       })
     } else {
+      // For global rankings, use a different approach to count distinct users
+      // This avoids issues with raw SQL queries
+      const distinctUsers = await prisma.typingResult.findMany({
+        select: {
+          userId: true
+        },
+        distinct: ['userId']
+      });
+      
+      totalCount = distinctUsers.length;
+      
       // If no userId, return global ranking with best result per user
       results = await prisma.typingResult.findMany({
         where: {},
         orderBy,
         distinct: ['userId'],
-        take: limit,
+        skip,
+        take: itemsPerPage,
         include: {
           user: {
             select: {
@@ -112,11 +134,25 @@ export async function GET(req: Request) {
       })
     }
     
-    return NextResponse.json({ results }, { status: 200 })
+    // Return results with pagination metadata
+    return NextResponse.json({
+      results,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalCount / itemsPerPage),
+        totalItems: totalCount,
+        itemsPerPage
+      }
+    }, { status: 200 })
   } catch (error) {
-    console.error("Error fetching results:", error)
+    console.error("Error fetching results:", error instanceof Error ? error.message : String(error))
+    console.error("Error details:", error)
+    
     return NextResponse.json(
-      { error: "Failed to fetch results" },
+      { 
+        error: "Failed to fetch results", 
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     )
   }
