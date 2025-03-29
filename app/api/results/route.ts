@@ -60,6 +60,7 @@ export async function GET(req: Request) {
     const userId = url.searchParams.get("userId")
     const page = parseInt(url.searchParams.get("page") || "1")
     const itemsPerPage = parseInt(url.searchParams.get("itemsPerPage") || "10")
+    const topPerformerOnly = url.searchParams.get("topPerformer") === "true"
     
     // Always default to performanceScore for contest format
     const orderBy: Prisma.TypingResultOrderByWithRelationInput = {
@@ -72,6 +73,28 @@ export async function GET(req: Request) {
         { error: "Unauthorized to access these results" },
         { status: 403 }
       )
+    }
+
+    // Handle top performer request - more efficient than pagination
+    if (topPerformerOnly) {
+      const topResult = await prisma.typingResult.findFirst({
+        orderBy,
+        distinct: ['userId'],
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true,
+              image: true,
+              department: true,
+            },
+          },
+        },
+      });
+      
+      return NextResponse.json({
+        topPerformer: topResult
+      }, { status: 200 });
     }
 
     // Calculate pagination values

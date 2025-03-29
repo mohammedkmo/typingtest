@@ -67,6 +67,8 @@ function LeaderboardSkeleton() {
 export default function LeaderboardClient() {
   const { data: session } = useSession()
   const [results, setResults] = useState<TypingResult[]>([])
+  const [topPerformer, setTopPerformer] = useState<TypingResult | null>(null)
+  const [isTopPerformerLoading, setIsTopPerformerLoading] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<"global" | "personal">("global")
@@ -80,6 +82,41 @@ export default function LeaderboardClient() {
   
   // Calculate max score for progress bars
   const maxScore = Math.max(120, ...results.map(r => r.performanceScore || 0))
+  
+  // Fetch the top performer separately
+  useEffect(() => {
+    async function fetchTopPerformer() {
+      if (view !== "global") return;
+      
+      setIsTopPerformerLoading(true);
+      try {
+        const response = await fetch('/api/results?topPerformer=true', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store'
+        });
+        
+        if (!response.ok) {
+          console.error("Failed to fetch top performer");
+          return;
+        }
+        
+        const data = await response.json();
+        
+        if (data && data.topPerformer) {
+          setTopPerformer(data.topPerformer);
+        }
+      } catch (error) {
+        console.error("Error fetching top performer:", error);
+      } finally {
+        setIsTopPerformerLoading(false);
+      }
+    }
+    
+    fetchTopPerformer();
+  }, [view]);
   
   useEffect(() => {
     async function fetchResults() {
@@ -277,7 +314,11 @@ export default function LeaderboardClient() {
                   <div className="h-8 border-l border-border"></div>
                   <div>
                     <div className="text-2xl font-bold tabular-nums">
-                      {results.length > 0 ? results[0].performanceScore || 0 : 0}
+                      {isTopPerformerLoading ? (
+                        <Skeleton className="h-8 w-16 inline-block" />
+                      ) : (
+                        topPerformer ? topPerformer.performanceScore : 0
+                      )}
                     </div>
                     <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Top Score</div>
                   </div>
@@ -291,22 +332,36 @@ export default function LeaderboardClient() {
                   </div>
                 </div>
 
-                {results.length > 0 && (
+                {isTopPerformerLoading ? (
+                  <div className="absolute top-0 left-0 right-0 p-5">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-12 w-12 rounded-full" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-32" />
+                      </div>
+                    </div>
+                  </div>
+                ) : topPerformer ? (
                   <div className="absolute top-0 left-0 right-0 p-5">
                     <div className="flex items-center gap-3">
                       <div className="h-12 w-12 rounded-full overflow-hidden border-2 border-white/50">
                         <Image 
-                          src={results[0].user.image || "/default-avatar.jpg"} 
+                          src={topPerformer.user.image || "/default-avatar.jpg"} 
                           alt="Leader" 
                           width={48} 
                           height={48}
                         />
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-black">{results[0].user.name || 'Anonymous'}</div>
-                        <div className="text-xs text-black/50">Current Leader . {results[0].user.department || 'Unknown Department'}</div>
+                        <div className="text-sm font-medium text-black">{topPerformer.user.name || 'Anonymous'}</div>
+                        <div className="text-xs text-black/50">Current Leader . {topPerformer.user.department || 'Unknown Department'}</div>
                       </div>
                     </div>
+                  </div>
+                ) : (
+                  <div className="absolute top-0 left-0 right-0 p-5">
+                    <div className="text-sm text-black/70">No performers yet</div>
                   </div>
                 )}
                 
