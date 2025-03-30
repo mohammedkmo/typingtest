@@ -71,6 +71,9 @@ export default function SignInForm() {
           throw new Error(data.error || "Failed to send verification code");
         }
   
+        // Store the timestamp when the code was sent
+        localStorage.setItem('codeSentTime', Date.now().toString());
+  
         setEmailSent(true)
         setIsLoading(false)
         

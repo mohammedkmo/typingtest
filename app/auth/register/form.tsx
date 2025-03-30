@@ -98,6 +98,9 @@ export default function RegisterForm() {
         throw new Error(codeData.error || "Failed to send verification code");
       }
 
+      // Store the timestamp when the code was sent
+      localStorage.setItem('codeSentTime', Date.now().toString());
+
       // Redirect to verification page
       router.push(`/auth/verify?email=${encodeURIComponent(email)}&registered=true`);
 

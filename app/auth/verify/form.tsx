@@ -1,18 +1,19 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { signIn } from "next-auth/react"
 import { motion } from "framer-motion"
-import { Loader2, AlertCircle, RefreshCw } from "lucide-react"
+import { Loader2, AlertCircle, RefreshCw, Clock, Inbox } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
 import Image from "next/image"
 import Link from "next/link"
 import { Calistoga } from "next/font/google"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
+import { Progress } from "@/components/ui/progress"
 
 const calistoga = Calistoga({
   weight: ["400"],
@@ -29,6 +30,53 @@ export default function VerificationForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [verificationCode, setVerificationCode] = useState("")
+  const [countdown, setCountdown] = useState(0)
+  const [timerActive, setTimerActive] = useState(false)
+  
+  // Initialize the timer when component mounts
+  useEffect(() => {
+    // Check if there's a stored timestamp for when the code was sent
+    const codeSentTime = localStorage.getItem('codeSentTime')
+    if (codeSentTime) {
+      const elapsedSeconds = Math.floor((Date.now() - parseInt(codeSentTime)) / 1000)
+      const remainingSeconds = Math.max(0, 120 - elapsedSeconds)
+      
+      if (remainingSeconds > 0) {
+        setCountdown(remainingSeconds)
+        setTimerActive(true)
+      }
+    }
+  }, [])
+  
+  // Countdown timer effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    
+    if (timerActive && countdown > 0) {
+      interval = setInterval(() => {
+        setCountdown((prevCountdown) => {
+          const newValue = prevCountdown - 1
+          if (newValue <= 0) {
+            clearInterval(interval)
+            setTimerActive(false)
+            return 0
+          }
+          return newValue
+        })
+      }, 1000)
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [timerActive, countdown])
+  
+  // Format the countdown as mm:ss
+  const formatCountdown = () => {
+    const minutes = Math.floor(countdown / 60)
+    const seconds = countdown % 60
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -86,6 +134,15 @@ export default function VerificationForm() {
       return
     }
     
+    if (timerActive) {
+      toast({
+        title: "Please wait",
+        description: `You can request a new code in ${formatCountdown()}`,
+        variant: "destructive",
+      })
+      return
+    }
+    
     setIsLoading(true)
     
     try {
@@ -110,6 +167,13 @@ export default function VerificationForm() {
         title: "Code resent!",
         description: "A new verification code has been sent to your email",
       })
+      
+      // Store the current timestamp
+      localStorage.setItem('codeSentTime', Date.now().toString())
+      
+      // Start the countdown timer
+      setCountdown(120)
+      setTimerActive(true)
       
       // Clear the current verification code field
       setVerificationCode("")
@@ -177,6 +241,13 @@ export default function VerificationForm() {
               </InputOTP>
             </div>
             
+            <Alert className="bg-muted/50 border-muted py-2">
+              <Inbox className="h-4 w-4 text-muted-foreground" />
+              <AlertDescription className="text-xs text-muted-foreground">
+                Don't see the code? Please check your spam or junk folder.
+              </AlertDescription>
+            </Alert>
+            
             <Button 
               type="submit" 
               className="w-full"
@@ -195,17 +266,27 @@ export default function VerificationForm() {
         </CardContent>
         
         <CardFooter className="flex flex-col space-y-4 pt-0">
-          <div className="text-center w-full">
-            <button
-              type="button"
-              onClick={resendCode}
-              className="text-xs text-muted-foreground hover:text-primary flex items-center justify-center mx-auto"
-              disabled={isLoading}
-            >
-              <RefreshCw className="h-3 w-3 mr-1" />
-              Resend Code
-            </button>
-          </div>
+          {timerActive && countdown > 0 ? (
+            <div className="w-full space-y-2">
+              <div className="flex items-center justify-center text-xs text-muted-foreground">
+                <Clock className="h-3 w-3 mr-1" />
+                <span>Resend available in {formatCountdown()}</span>
+              </div>
+              <Progress value={(countdown / 120) * 100} className="h-1" />
+            </div>
+          ) : (
+            <div className="text-center w-full">
+              <button
+                type="button"
+                onClick={resendCode}
+                className="text-xs text-muted-foreground hover:text-primary flex items-center justify-center mx-auto"
+                disabled={isLoading || timerActive}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Resend Code
+              </button>
+            </div>
+          )}
           
           <div className="flex justify-center w-full">
             <Link href="/auth/signin" className="text-xs text-muted-foreground hover:text-primary">
