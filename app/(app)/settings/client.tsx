@@ -102,19 +102,6 @@ function SettingsPageSkeleton() {
 }
 
 // Form schemas
-const passwordSchema = z
-  .object({
-    currentPassword: z.string().min(1, "Current password is required"),
-    newPassword: z.string().min(8, "Password must be at least 8 characters"),
-    confirmPassword: z
-      .string()
-      .min(8, "Password must be at least 8 characters"),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ["confirmPassword"],
-  });
-
 const profileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
 });
@@ -125,7 +112,6 @@ export default function SettingsPageClient() {
   const router = useRouter();
   // States
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -134,15 +120,6 @@ export default function SettingsPageClient() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Forms - moved before conditional returns to ensure consistent hook order
-  const passwordForm = useForm<z.infer<typeof passwordSchema>>({
-    resolver: zodResolver(passwordSchema),
-    defaultValues: {
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    },
-  });
-
   const profileForm = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -251,38 +228,6 @@ export default function SettingsPageClient() {
       toast({ variant: "destructive", title: "Something went wrong" });
     } finally {
       setIsUpdatingProfile(false);
-    }
-  };
-
-  const onPasswordSubmit = async (values: z.infer<typeof passwordSchema>) => {
-    setIsUpdatingPassword(true);
-
-    try {
-      const response = await fetch("/api/user/password", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword: values.currentPassword,
-          newPassword: values.newPassword,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        passwordForm.reset();
-        toast({ title: "Password updated" });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Update failed",
-          description: data.error || "Please try again",
-        });
-      }
-    } catch (error) {
-      toast({ variant: "destructive", title: "Something went wrong" });
-    } finally {
-      setIsUpdatingPassword(false);
     }
   };
 
@@ -462,119 +407,6 @@ export default function SettingsPageClient() {
 
         {/* Security Tab */}
         <TabsContent value="security" className="space-y-4">
-          {/* Password Card */}
-          <Card className="border border-border/40 bg-card/30 backdrop-blur-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-medium flex items-center gap-2">
-                <KeyRound className="h-4 w-4" />
-                <span>Password</span>
-              </CardTitle>
-            </CardHeader>
-
-            <CardContent>
-              <Form {...passwordForm}>
-                <form
-                  onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
-                  className="space-y-4"
-                >
-                  <FormField
-                    control={passwordForm.control}
-                    name="currentPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <FormLabel className="sm:w-36 sm:text-right">
-                            Current Password
-                          </FormLabel>
-                          <div className="flex-1">
-                            <FormControl>
-                              <Input
-                                type="password"
-                                className="bg-background/50"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </div>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={passwordForm.control}
-                    name="newPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <FormLabel className="sm:w-36 sm:text-right">
-                            New Password
-                          </FormLabel>
-                          <div className="flex-1">
-                            <FormControl>
-                              <Input
-                                type="password"
-                                className="bg-background/50"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Minimum 8 characters
-                            </p>
-                          </div>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={passwordForm.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <FormLabel className="sm:w-36 sm:text-right">
-                            Confirm Password
-                          </FormLabel>
-                          <div className="flex-1">
-                            <FormControl>
-                              <Input
-                                type="password"
-                                className="bg-background/50"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </div>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="flex justify-end mt-6">
-                    <Button
-                      type="submit"
-                      disabled={
-                        isUpdatingPassword || !passwordForm.formState.isDirty
-                      }
-                      className="gap-2"
-                    >
-                      {isUpdatingPassword ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Updating...</span>
-                        </>
-                      ) : (
-                        "Update Password"
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-
           {/* Account Actions Card */}
           <Card className="border border-border/40 bg-card/30 backdrop-blur-sm">
             <CardHeader className="pb-4">

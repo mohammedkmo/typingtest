@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db"
 import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { createTransport } from "nodemailer"
-import { Theme } from "next-auth"
 import crypto from 'crypto'
 
 const DOMAIN = "@petrochina-hfy.com";
@@ -298,22 +297,33 @@ export const authOptions: NextAuthOptions = {
     verifyRequest: "/auth/verify-request",
   },
   callbacks: {
-    async session({ session, token }) {
+    async session({ session, token, trigger }) {
       if (token.sub && session.user) {
         session.user.id = token.sub,
         session.user.image = token.picture as string,
         session.user.name = token.name as string,
         session.user.email = token.email as string
       }
+
+      if(trigger === "update") {
+        session.user.name = token.name,
+        session.user.image = token.picture
+      }
       
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
+          // Add properties to the JWT token
       if (user) {
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
         token.picture = user.image;
+      }
+
+      if (trigger === "update") {
+        token.name = session.user.name;
+        token.picture = session.user.image;
       }
       
       return token;
