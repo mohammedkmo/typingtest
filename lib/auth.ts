@@ -297,36 +297,60 @@ export const authOptions: NextAuthOptions = {
     verifyRequest: "/auth/verify-request",
   },
   callbacks: {
-    async session({ session, token, trigger }) {
-      if (token.sub && session.user) {
-        session.user.id = token.sub,
-        session.user.image = token.picture as string,
-        session.user.name = token.name as string,
-        session.user.email = token.email as string
-      }
-
-      if(trigger === "update") {
-        session.user.name = token.name,
-        session.user.image = token.picture
-      }
-      
-      return session;
-    },
     async jwt({ token, user, trigger, session }) {
-          // Add properties to the JWT token
+      // On initial sign in
       if (user) {
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
-        token.picture = user.image;
+        token.image = user.image;
+        token.department = user.department;
       }
 
-      if (trigger === "update") {
-        token.name = session.user.name;
-        token.picture = session.user.image;
+      // On every request, fetch the latest user data
+      if (token.id) {
+        try {
+          const latestUser = await prisma.user.findUnique({
+            where: { id: token.id },
+            select: {
+              name: true,
+              image: true,
+              department: true,
+            },
+          });
+
+          if (latestUser) {
+            // Update token with latest data
+            token.name = latestUser.name;
+            token.image = latestUser.image;
+            token.department = latestUser.department;
+          }
+        } catch (error) {
+          console.error("Error fetching latest user data:", error);
+        }
       }
-      
+
+      // Handle explicit updates (e.g., from profile changes)
+      if (trigger === "update" && session) {
+        return {
+          ...token,
+          name: session.user.name,
+          image: session.user.image,
+          department: session.user.department,
+        };
+      }
+
       return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.name = token.name as string;
+        session.user.email = token.email as string;
+        session.user.image = token.image as string | null;
+        session.user.department = token.department as string | null;
+      }
+      return session;
     },
   },
 } 
